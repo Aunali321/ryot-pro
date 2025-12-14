@@ -70,15 +70,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=caddy:2.9.1 /usr/bin/caddy /usr/local/bin/caddy
 RUN npm install --global concurrently@9.1.2 && concurrently --version
 
+# Copy Caddyfile BEFORE switching to non-root user
+COPY --from=frontend-builder /app/ci/Caddyfile /etc/caddy/Caddyfile
+
+# Create user and set up home directory
 RUN useradd -m -u 1001 ryot
 WORKDIR /home/ryot
-USER ryot
 
-COPY --from=frontend-builder /app/ci/Caddyfile /etc/caddy/Caddyfile
+# Copy app files with proper ownership
 COPY --from=frontend-builder --chown=ryot:ryot /app/apps/frontend/node_modules ./node_modules
 COPY --from=frontend-builder --chown=ryot:ryot /app/apps/frontend/package.json ./package.json
 COPY --from=frontend-builder --chown=ryot:ryot /app/apps/frontend/build ./build
 COPY --from=backend-builder --chown=ryot:ryot /app/target/release/backend /usr/local/bin/backend
+
+# Switch to non-root user
+USER ryot
 
 CMD [ \
     "concurrently", "--names", "frontend,backend,proxy", "--kill-others", \
